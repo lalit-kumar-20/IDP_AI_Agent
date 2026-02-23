@@ -1,27 +1,28 @@
 ﻿# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.pyc
-*.pdb
-
-# Environments
 venv/
-.env
-
-# Test caches
+__pycache__/
+*.pyc
+*.pyo
 .pytest_cache/
 
-# App artifacts
+# Environment
+.env
+
+# Data (generated at runtime)
 vector_db/
 extracted_texts/
-*.sqlite3
+temp_uploads/
+vendor_database.json
+data.json
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
 
 # IDE
 .vscode/
 .idea/
 
 # OS
-.DS_Store
 Thumbs.db
+.DS_Store

@@ -48,6 +48,9 @@ class VectorIndexer:
             for i in range(len(chunks))
         ]
         
+        print("**********",chunks)
+        print("**********",metadatas)
+        print("**********",chunk_ids)
         # Add to collection
         self.collection.add(
             documents=chunks,

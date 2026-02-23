@@ -12,7 +12,7 @@ class Config:
     # Model Configuration
     GEMINI_MODEL = "gemini-2.5-flash"
     
-    # Storage Paths
+    # Storage Pathsclear
     EXTRACTED_TEXT_DIR = "extracted_texts"
     VECTOR_DB_DIR = "vector_db"
     VENDOR_DB_PATH = "vendor_database.json"

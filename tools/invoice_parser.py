@@ -21,9 +21,12 @@ class InvoiceParser:
             return InvoiceData(metadata=InvoiceMetadata(), line_items=[])
         print(f"[PARSE] Parsing invoice data...")
         prompt = self._build_extraction_prompt()
+        print(prompt)
         response = self.model.generate_content([prompt, text_content])
+        print("**********",response.text)
         try:
             json_text = self._extract_json(response.text)
+            print("**********",json_text)
             data_dict = json.loads(json_text)
             invoice_data = InvoiceData(**data_dict)
             print(f"[SUCCESS] Parsed metadata fields: {len([k for k, v in invoice_data.metadata.model_dump().items() if v is not None])}")
@@ -146,6 +149,7 @@ class InvoiceParser:
           "line_items": [
             {
               "description": "string or null",
+              "HNS/SAC":number or null,
               "quantity": number or null,
               "unit_price": number or null,
               "amount": number or null,
