@@ -100,12 +100,9 @@ class VendorManager:
     
     def list_vendors(self) -> List[Vendor]:
         """
-        List all vendors
-        
-        Returns:
-            List of all vendors
+        List all vendors (reloads from disk to ensure sync)
         """
-        return self.vendors
+        return self._load_vendors()
     
     def get_or_create_vendor(
         self,

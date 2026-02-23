@@ -15,10 +15,7 @@ app = FastAPI(title="IDP AI Agent API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://frontend-seven-lovat-86.vercel.app",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -265,16 +262,20 @@ async def process_sample(sample_name: str = Form("sample.pdf")):
 @app.get("/pdf")
 async def get_current_pdf():
     """Serve the uploaded file for preview"""
-    if not current_file_path or not os.path.exists(current_file_path):
+    path, _ = load_session()
+    if not path or not os.path.exists(path):
         raise HTTPException(status_code=404, detail="No file currently loaded")
-    ext = os.path.splitext(current_file_path)[1].lower()
+    ext = os.path.splitext(path)[1].lower()
     mime_map = {".pdf": "application/pdf", ".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
-    return FileResponse(current_file_path, media_type=mime_map.get(ext, "application/octet-stream"))
+    return FileResponse(path, media_type=mime_map.get(ext, "application/octet-stream"))
 
 
 @app.post("/correct")
 async def apply_correction(request: CorrectionRequest):
     """Apply correction. If multi-page, optionally specify page_index."""
+    global current_file_path, page_results
+    current_file_path, page_results = load_session()
+    
     try:
         # Reload state from page_results if available
         if request.page_index is not None and 0 <= request.page_index < len(page_results):
@@ -302,6 +303,9 @@ async def apply_correction(request: CorrectionRequest):
 
 @app.post("/extract")
 async def extract_field(request: ExtractionRequest):
+    global current_file_path, page_results
+    current_file_path, page_results = load_session()
+    
     try:
         # Reload state from page_results if available
         if request.page_index is not None and 0 <= request.page_index < len(page_results):
@@ -326,9 +330,10 @@ async def extract_field(request: ExtractionRequest):
 @app.get("/current")
 async def get_current():
     """Get current results (all pages)"""
-    if not page_results:
+    _, results = load_session()
+    if not results:
         raise HTTPException(status_code=404, detail="No invoice currently loaded")
-    return {"pages": page_results, "total_pages": len(page_results)}
+    return {"pages": results, "total_pages": len(results)}
 
 
 @app.get("/vendors")
@@ -342,10 +347,12 @@ async def list_vendors():
 
 @app.get("/download")
 async def download_json():
-    if not page_results:
+    _, results = load_session()
+    if not results:
         raise HTTPException(status_code=404, detail="No invoice currently loaded")
-    return JSONResponse(content={"pages": page_results}, headers={
-        "Content-Disposition": "attachment; filename=invoice_data.json"
+    return JSONResponse(content={"pages": results}, headers={
+        "Content-Disposition": "attachment; filename=invoice_data.json",
+        "Access-Control-Expose-Headers": "Content-Disposition"
     })
 
 
