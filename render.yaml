@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: idp-agent-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false
+    disk:
+      name: idp-agent-data
+      mountPath: /opt/render/project/src/vector_db
+      sizeGB: 1
