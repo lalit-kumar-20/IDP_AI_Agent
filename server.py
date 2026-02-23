@@ -25,6 +25,14 @@ app.add_middleware(
 
 agent = InvoiceAgent()
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "IDP AI Agent API"}
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+
 UPLOAD_DIR = "temp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
