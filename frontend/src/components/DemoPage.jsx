@@ -100,7 +100,10 @@ const DemoPage = () => {
         if (!extractField.trim()) return;
         setIsProcessing(true);
         try {
-            const res = await axios.post(`${API}/extract`, { field_name: extractField });
+            const res = await axios.post(`${API}/extract`, {
+                field_name: extractField,
+                page_index: activePage
+            });
             setExtractResult(res.data);
         } catch (err) { setError(err.response?.data?.detail || 'Extraction failed.'); }
         finally { setIsProcessing(false); }

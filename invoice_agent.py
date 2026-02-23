@@ -67,6 +67,7 @@ class InvoiceAgent:
         # Prepare response
         result = {
             "document_id": document_id,
+            "extracted_text": self.current_text,
             "invoice_data": self.current_invoice_data.model_dump(),
             "vendor": vendor.model_dump() if vendor else None
         }

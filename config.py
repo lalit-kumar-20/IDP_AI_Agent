@@ -15,7 +15,8 @@ class Config:
     # Storage Paths
     EXTRACTED_TEXT_DIR = os.getenv("EXTRACTED_TEXT_DIR", "extracted_texts")
     VECTOR_DB_DIR = os.getenv("VECTOR_DB_DIR", "vector_db")
-    VENDOR_DB_PATH = os.getenv("VENDOR_DB_PATH", "vendor_database.json")
+    VENDOR_DB_PATH = os.getenv("VENDOR_DB_PATH", os.path.join(VECTOR_DB_DIR, "vendor_database.json"))
+    SESSION_DATA_PATH = os.getenv("SESSION_DATA_PATH", os.path.join(VECTOR_DB_DIR, "session_data.json"))
     
     # Embedding Configuration
     COLLECTION_NAME = "invoice_documents"

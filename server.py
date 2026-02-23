@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from invoice_agent import InvoiceAgent
 from PyPDF2 import PdfReader, PdfWriter
+from config import Config
 
 app = FastAPI(title="IDP AI Agent API")
 
@@ -43,10 +44,30 @@ ALLOWED_TYPES = {
     "image/jpeg": ".jpg",
 }
 
-# Track the current uploaded file path
-current_file_path: Optional[str] = None
-# Track per-page results for multi-page PDFs
-page_results: List[dict] = []
+# Track current uploaded file and results
+# Persistent storage helpers
+def save_session(file_path: Optional[str], results: List[dict]):
+    import json
+    data = {
+        "current_file_path": file_path,
+        "page_results": results
+    }
+    with open(Config.SESSION_DATA_PATH, "w") as f:
+        json.dump(data, f)
+
+def load_session():
+    import json
+    if not os.path.exists(Config.SESSION_DATA_PATH):
+        return None, []
+    try:
+        with open(Config.SESSION_DATA_PATH, "r") as f:
+            data = json.load(f)
+            return data.get("current_file_path"), data.get("page_results", [])
+    except:
+        return None, []
+
+# Global variables for backward compatibility/quick access, but we'll sync with disk
+current_file_path, page_results = load_session()
 
 
 class CorrectionRequest(BaseModel):
@@ -55,6 +76,7 @@ class CorrectionRequest(BaseModel):
 
 class ExtractionRequest(BaseModel):
     field_name: str
+    page_index: Optional[int] = None
     context: Optional[str] = None
 
 
@@ -75,7 +97,6 @@ def split_pdf_pages(pdf_path: str) -> List[str]:
 def process_image_as_invoice(image_path: str, document_id: str) -> dict:
     """Process a single image through the Gemini model as an invoice."""
     import google.generativeai as genai
-    from config import Config
 
     Config.validate()
     genai.configure(api_key=Config.GOOGLE_API_KEY)
@@ -112,6 +133,7 @@ def process_image_as_invoice(image_path: str, document_id: str) -> dict:
 
     return {
         "document_id": document_id,
+        "extracted_text": extracted_text,
         "invoice_data": agent.current_invoice_data.model_dump(),
         "vendor": vendor.model_dump() if vendor else None,
     }
@@ -142,12 +164,14 @@ async def process_invoice(file: UploadFile = File(...)):
 
     current_file_path = file_path
     page_results = []
+    save_session(current_file_path, page_results)
 
     try:
         if is_image:
             # Single image → single result
             result = process_image_as_invoice(file_path, doc_base)
             page_results = [result]
+            save_session(current_file_path, page_results)
             return {"pages": page_results, "total_pages": 1}
 
         # PDF — check page count
@@ -157,6 +181,7 @@ async def process_invoice(file: UploadFile = File(...)):
         if num_pages == 1:
             result = agent.process_invoice(file_path, doc_base)
             page_results = [result]
+            save_session(current_file_path, page_results)
             return {"pages": page_results, "total_pages": 1}
 
         # Multi-page: split and process each page
@@ -206,6 +231,7 @@ async def process_sample(sample_name: str = Form("sample.pdf")):
     shutil.copy2(sample_path, dest)
     current_file_path = dest
     page_results = []
+    save_session(current_file_path, page_results)
 
     try:
         reader = PdfReader(dest)
@@ -214,6 +240,7 @@ async def process_sample(sample_name: str = Form("sample.pdf")):
         if num_pages == 1:
             result = agent.process_invoice(dest, doc_base)
             page_results = [result]
+            save_session(current_file_path, page_results)
             return {"pages": page_results, "total_pages": 1}
 
         page_paths = split_pdf_pages(dest)
@@ -228,7 +255,8 @@ async def process_sample(sample_name: str = Form("sample.pdf")):
             finally:
                 try: os.remove(pp)
                 except: pass
-
+        
+        save_session(current_file_path, page_results)
         return {"pages": page_results, "total_pages": num_pages}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -248,20 +276,22 @@ async def get_current_pdf():
 async def apply_correction(request: CorrectionRequest):
     """Apply correction. If multi-page, optionally specify page_index."""
     try:
-        # If there's a specific page, reload that page's context
+        # Reload state from page_results if available
         if request.page_index is not None and 0 <= request.page_index < len(page_results):
             pg = page_results[request.page_index]
+            agent.current_document_id = pg.get("document_id")
+            agent.current_text = pg.get("extracted_text")
             if pg.get("invoice_data"):
                 from models import InvoiceData
-                agent.current_document_id = pg["document_id"]
                 agent.current_invoice_data = InvoiceData(**pg["invoice_data"])
 
         result = agent.apply_correction(request.query)
 
-        # Update page_results too
+        # Update page_results
         if request.page_index is not None and 0 <= request.page_index < len(page_results):
             page_results[request.page_index]["invoice_data"] = result.get("invoice_data")
             page_results[request.page_index]["vendor"] = result.get("vendor")
+            save_session(current_file_path, page_results)
 
         return result
     except ValueError as e:
@@ -273,7 +303,19 @@ async def apply_correction(request: CorrectionRequest):
 @app.post("/extract")
 async def extract_field(request: ExtractionRequest):
     try:
+        # Reload state from page_results if available
+        if request.page_index is not None and 0 <= request.page_index < len(page_results):
+            pg = page_results[request.page_index]
+            agent.current_document_id = pg.get("document_id")
+            agent.current_text = pg.get("extracted_text")
+            if pg.get("invoice_data"):
+                from models import InvoiceData
+                agent.current_invoice_data = InvoiceData(**pg["invoice_data"])
+
         result = agent.extract_field(request.field_name, request.context)
+        # Note: extraction doesn't usually change the state of the document data, 
+        # but if we were to save the result into page_results, we'd do it here.
+        # For now, we just return the result.
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
